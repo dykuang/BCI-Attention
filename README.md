@@ -15,7 +15,7 @@ Scripts should run with `tensorflow>=2.8.0`
   These are less organised scripts. They were written as our experiments goes. So you probably will not use all contents in a given script, but just some parts of it for your purpose. 
   
   `DEAP_Plots.py`: Gather metrics from trained models with DEAP for benchmarking, analysis and make some visualizations.  
-  `SEED_extra_plot.py`: Gather metrics from trained models with SEED for benchmarking, analysis and make some visualizations.
+  `SEED_extra_plot.py`: Gather metrics from trained models with SEED for benchmarking, analysis and make some visualizations.  
   `sigma_effect.py`: Scripts for exploring the Kernel Attention Module (KAM)'s effect on backbone network with SEED dataset.
   
   ##### Other supporting files  
