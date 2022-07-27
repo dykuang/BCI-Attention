@@ -1,5 +1,5 @@
 # BCI-Attention
-A repository including multiple attentional modules designs for brain signal recognition tasks.
+A repository including multiple attentional module designs for brain signal recognition tasks.
 Scripts should run with `tensorflow>=2.8.0`
 
 ------
@@ -27,7 +27,7 @@ Scripts should run with `tensorflow>=2.8.0`
    
 ------
 ### Demo Plots
-These figures are:  
+Figures below are:  
   * The prediction transition curve under different models given the same input samples from SEED dataset. 
   * Track of accuracies when different frequencies are filtered out from input samples.  
   * The map from deep gram matrix's element to attention matrix's element learned by MCAM module
