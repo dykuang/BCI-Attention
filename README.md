@@ -32,4 +32,4 @@ These figures are:
   * Track of accuracies when different frequencies are filtered out from input samples.  
   * The map from deep gram matrix's element to attention matrix's element learned by MCAM module
  <!-- ![Image](demo_plots/PTC_SEED_KAM.png?raw=true "Title") -->
-<img src="demo_plots/PTC_SEED_KAM.png" style=" width:960px ; height:240px "><img src="demo_plots/KAM_DEAP_freq_S24_rej.png" style=" width:360px ; height:240px " ><img src="demo_plots/mono_trace_S24.png" style=" width:480px ; height:200px "  >
+<img src="demo_plots/PTC_SEED_KAM.png" style=" width:960px ; height:200px "><img src="demo_plots/KAM_DEAP_freq_S24_rej.png" style=" width:360px ; height:240px " ><img src="demo_plots/mono_trace_S24.png" style=" width:480px ; height:200px "  >
