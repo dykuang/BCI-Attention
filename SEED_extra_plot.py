@@ -83,7 +83,8 @@ def load_trained(ckpt_path, nn_token, subject,model_dict, count = 0, num_class=3
 #
 #%%
 '''
-Extracting channel attention weights for compared models:
+Extracting channel attention weights for compared models.
+They will be used for scalp mappings with matlab
 '''
 ckpt_path = '/mnt/HDD/Datasets/SEED/ckpt'
 subject_selected = 15
@@ -311,23 +312,6 @@ with plt.style.context('ggplot'): # compare with resutls from SEED
 '''
 Sensitivity on Frequencies
 '''
-from scipy import signal
-def batch_band_pass(values, low_end_cutoff, high_end_cutoff, sampling_freq):
-    assert len(values.shape) == 3, "wrong input shape"
-    S, T, C = values.shape
-    X_filtered = np.empty(values.shape)
-    lo_end_over_Nyquist = low_end_cutoff/(0.5*sampling_freq)
-    hi_end_over_Nyquist = high_end_cutoff/(0.5*sampling_freq)
-
-    bess_b,bess_a = signal.iirfilter(5,
-                Wn=[lo_end_over_Nyquist,hi_end_over_Nyquist],
-                btype="bandpass", ftype='bessel')
-                
-    for i in range(S):
-        for j in range(C):
-            X_filtered[i,:,j] = signal.filtfilt(bess_b,bess_a,values[i,:,j])
-    
-    return X_filtered
 
 X = loadmat( os.path.join(data_path, 'S{:02d}_E01.mat'.format(subject_selected)) )['segs'].transpose([2,1,0])
 chns = np.arange(62)
@@ -337,6 +321,7 @@ Y = loadmat( os.path.join(data_path, 'Label.mat') )['seg_labels'][0]+1
 
 
 #%%
+from Utils import batch_band_pass
 data_seq = [ batch_band_pass(X, 0.1, hp, 200) for hp in [10*i for i in range(1,10)]]
 data_seq.append(X)
 data_seq = [zscore(_d, axis=1) for _d in data_seq]

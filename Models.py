@@ -465,179 +465,10 @@ def KANet(nb_classes, Chans = 64, Samples = 128,
     return Mymodel
 
 
-def SANet(nb_classes, Dist_M,
-          Chans = 64, Samples = 128, 
-          dropoutRate = 0.5, kernLength = 64, F1 = 8, 
-          D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
-          optimizer = Adam, learning_rate = 1e-3):
-
-   
-    if dropoutType == 'SpatialDropout2D':
-        dropoutType = layers.SpatialDropout2D
-    elif dropoutType == 'Dropout':
-        dropoutType = layers.Dropout
-    else:
-        raise ValueError('dropoutType must be one of SpatialDropout2D '
-                         'or Dropout, passed as a string.')
-    
-    input1       = layers.Input(shape = (Samples, Chans, 1))
-
-    block1       = layers.Lambda(lambda x: x[...,0])(input1)
-    block1       = Spatial_att(init=10, vmin=-.01, vmax=20, name='SaM')(block1, Dist_M, offdiag_mask=True)
-    block1       = layers.Lambda(lambda x: x[...,None])(block1)
-
-
-    ##################################################################
-    block1       = layers.Conv2D(F1, (kernLength, 1), padding = 'same',
-                                   use_bias = False, name = 'Conv2D')(block1)
-    # block1       = layers.Conv2D(F1, (kernLength, 1), padding = 'same',
-    #                                use_bias = False, name = 'Conv2D')(input1)
-
-    # block1       = R_corr(name = 'Rcorr', corr_passed=np.zeros((8,8)).astype(np.float32))(block1)
-    # block1       = R_corr(name = 'Rcorr', corr_passed=None)(block1)
-    # block1       = layers.Permute((3,1,2))(block1)
-    # block1       = Spatial_att(init=0.01, vmin=-2, vmax=2,name='SaM')(block1, Dist_M,offdiag_mask=True)
-    # block1       = layers.Permute((2,3,1))(block1)
-    
-    block1       = layers.BatchNormalization(axis = -1, name='BN-1')(block1)  # normalization on channels or time
-    block1       = layers.DepthwiseConv2D((1, Chans), use_bias = False, 
-                                   depth_multiplier = D,
-                                   depthwise_constraint = max_norm(1.),
-                                   name = 'DepthConv')(block1)
-    block1       = layers.BatchNormalization(axis = -1, name = 'BN-2')(block1)
-    block1       = layers.Activation('elu')(block1)
-
-    block1       = layers.AveragePooling2D((2, 1))(block1)
-    block1       = dropoutType(dropoutRate)(block1)
-    
-    block2       = layers.SeparableConv2D(F2, (5, 1),
-                                   use_bias = False, padding = 'same',
-                                    name = 'SepConv-1')(block1)
-
-    # block2       = R_corr(name = 'Rcorr')(block2)
-
-    # block2       = layers.Lambda(lambda x: x[...,0,:])(block2)
-    # block2       = K_attention(name = 'Katt')(block2, offdiag_mask=True, use_mask=False)
-    # block2       = K_attention_MH(num_heads=2, name='Katt')(block2)
-    # block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
-                                #  name='Katt')(block2,kernel='Linear',use_mask=False)
-    # block2       = layers.Lambda(lambda x: x[...,None,:])(block2)
-
-    block2       = layers.BatchNormalization(axis = -1, name = 'BN-3')(block2)
-    block2       = layers.Activation('elu')(block2)
-    block2       = layers.AveragePooling2D((2, 1))(block2)
-    block2       = dropoutType(dropoutRate)(block2)
-       
-    flatten      = layers.Flatten(name = 'flatten')(block2)
-    
-    dense        = layers.Dense(nb_classes, name = 'dense', 
-                         kernel_constraint = max_norm(norm_rate))(flatten)
-    softmax      = layers.Activation('softmax', name = 'softmax')(dense)
-    
-    Mymodel      = Model(inputs=input1, outputs=softmax)
-
-    Mymodel.compile(loss='categorical_crossentropy', 
-                    metrics=['accuracy'],
-                    optimizer=optimizer(learning_rate=learning_rate))
-    
-   
-    return Mymodel
-
-
-def make_map_model( name = 'map_model'):
-    x_In = layers.Input((1,), name='map_in')
-    x = layers.Dense(16, activation = 'elu')(x_In)
-    x= layers.Dense(16, activation = 'elu')(x)
-    x = layers.BatchNormalization()(x)
-    x_Out= layers.Dense(1, activation = 'sigmoid')(x)
-
-    return Model(x_In, x_Out, name=name)
-
-
-
-def D2ANet(nb_classes, Dist_M, penalty_rate=10, num_kpts=11,
-             Chans = 64, Samples = 128, 
-             dropoutRate = 0.5, kernLength = 64, F1 = 8, 
-             D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
-             optimizer = Adam, learning_rate = 1e-3):
-
-    d2a_model = make_map_model()
-   
-    if dropoutType == 'SpatialDropout2D':
-        dropoutType = layers.SpatialDropout2D
-    elif dropoutType == 'Dropout':
-        dropoutType = layers.Dropout
-    else:
-        raise ValueError('dropoutType must be one of SpatialDropout2D '
-                         'or Dropout, passed as a string.')
-    
-    input1       = layers.Input(shape = (Samples, Chans, 1))
-
-    block1       = layers.Lambda(lambda x: x[...,0])(input1)
-    # block1       = Spatial_att(init=10, vmin=-.002, vmax=2,name='SaM')(block1, Dist_M,offdiag_mask=True)
-    block1, penalty = D2A(map_model=d2a_model, penalty_rate=penalty_rate, num_kpts=num_kpts, name='D2A')(block1, Dist_M, offdiag_mask = True)
-    # block1       = DA_mono(name='DA_mono')(block1, Dist_M, offdiag_mask = True)
-    block1       = layers.Lambda(lambda x: x[...,None])(block1)
-
-
-    ##################################################################
-    block1       = layers.Conv2D(F1, (kernLength, 1), padding = 'same',
-                                   use_bias = False, name = 'Conv2D')(block1)
-    # block1       = layers.Conv2D(F1, (kernLength, 1), padding = 'same',
-    #                                use_bias = False, name = 'Conv2D')(input1)
-
-    # block1       = R_corr(name = 'Rcorr', corr_passed=np.zeros((8,8)).astype(np.float32))(block1)
-    # block1       = R_corr(name = 'Rcorr', corr_passed=None)(block1)
-    # block1       = layers.Permute((3,1,2))(block1)
-    # block1       = Spatial_att(init=0.01, vmin=-2, vmax=2,name='SaM')(block1, Dist_M,offdiag_mask=True)
-    # block1       = layers.Permute((2,3,1))(block1)
-    
-    block1       = layers.BatchNormalization(axis = -1, name='BN-1')(block1)  # normalization on channels or time
-    block1       = layers.DepthwiseConv2D((1, Chans), use_bias = False, 
-                                   depth_multiplier = D,
-                                   depthwise_constraint = max_norm(1.),
-                                   name = 'DepthConv')(block1)
-    block1       = layers.BatchNormalization(axis = -1, name = 'BN-2')(block1)
-    block1       = layers.Activation('elu')(block1)
-
-    block1       = layers.AveragePooling2D((2, 1))(block1)
-    block1       = dropoutType(dropoutRate)(block1)
-    
-    block2       = layers.SeparableConv2D(F2, (5, 1),
-                                   use_bias = False, padding = 'same',
-                                    name = 'SepConv-1')(block1)
-
-    # block2       = R_corr(name = 'Rcorr')(block2)
-
-    # block2       = layers.Lambda(lambda x: x[...,0,:])(block2)
-    # block2       = K_attention(name = 'Katt')(block2, offdiag_mask=True, use_mask=False)
-    # block2       = K_attention_MH(num_heads=2, name='Katt')(block2)
-    # block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
-    #                              name='Katt')(block2,kernel='Linear',use_mask=False)
-    # block2       = layers.Lambda(lambda x: x[...,None,:])(block2)
-
-    block2       = layers.BatchNormalization(axis = -1, name = 'BN-3')(block2)
-    block2       = layers.Activation('elu')(block2)
-    block2       = layers.AveragePooling2D((2, 1))(block2)
-    block2       = dropoutType(dropoutRate)(block2)
-       
-    flatten      = layers.Flatten(name = 'flatten')(block2)
-    
-    dense        = layers.Dense(nb_classes, name = 'dense', 
-                         kernel_constraint = max_norm(norm_rate))(flatten)
-    softmax      = layers.Activation('softmax', name = 'softmax')(dense)
-    
-    Mymodel      = Model(inputs=input1, outputs=softmax)
-    Mymodel.add_loss(penalty)
-    Mymodel.add_metric(penalty, name='mono_penalty')
-
-    Mymodel.compile(loss='categorical_crossentropy', 
-                    metrics=['accuracy'],
-                    optimizer=optimizer(learning_rate=learning_rate))
-    
-   
-    return Mymodel
-
+'''
+An inserted transformer that converts deep Gram matrix
+per batch to attention matrix
+'''
 def MTNet(nb_classes, Chans = 64, Samples = 128, 
              dropoutRate = 0.5, kernLength = 64, F1 = 8, 
              D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
@@ -734,6 +565,9 @@ def MTNet(nb_classes, Chans = 64, Samples = 128,
     
     return Mymodel
 
+'''
+Attentional modules such as SE and CBAM inserted in EEGNet
+'''
 def CANet(nb_classes, Chans = 64, Samples = 128, attention_module = 'se_block',
              dropoutRate = 0.5, kernLength = 64, F1 = 8, 
              D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
@@ -789,6 +623,10 @@ def CANet(nb_classes, Chans = 64, Samples = 128, attention_module = 'se_block',
     
     return Mymodel
 
+
+'''
+The easy QKV type attentional module inserted in EEGNet
+'''
 def QKVNet(nb_classes, Chans = 64, Samples = 128, 
            dropoutRate = 0.5, kernLength = 64, F1 = 8, 
            D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',

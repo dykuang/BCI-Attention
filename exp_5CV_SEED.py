@@ -4,6 +4,7 @@ Created on Tue Nov  3 09:57:24 2020
 
 @author: dykua
 
+Main script for training with SEED data
 For the benchmark purpose - 5cv
 """
 #%%
@@ -49,26 +50,8 @@ epochs = 80
 batch_size = 128
 
 
-'''
-load cap cooridinates and generate distance matrix
-'''
-import pickle
-with open('./ch_pos.pkl', 'rb') as pkl:
-    pos_dict = pickle.load(pkl)
+nn_token = 'DC' # change this accordingly with the selection of network
 
-coord = []
-for k, v in pos_dict.items():
-    coord.append(v)
-
-coord = np.array(coord)
-from scipy.spatial import distance_matrix
-Dist_M = distance_matrix(coord, coord)
-
-# Proper normalization
-# Dist_M = Dist_M/np.linalg.norm(Dist_M)
-Dist_M = Dist_M/np.max(Dist_M)
-
-nn_token = 'DCN_KAM'
 # model = D2ANet(nb_classes = 3, Dist_M = Dist_M, penalty_rate=10, num_kpts=11,
 #                Chans = chns, Samples = 200, 
 #                dropoutRate = 0.5, kernLength = 5, F1 = 8, 

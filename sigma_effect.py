@@ -62,7 +62,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.constraints import max_norm
 
 
-from Modules import K_attention_MH, qKv_attention
+from Modules import *
 # try pretrained with layer initialization?
 def EEGNet(nb_classes, Chans = 64, Samples = 128, 
              dropoutRate = 0.5, kernLength = 64, F1 = 8, 
@@ -204,15 +204,12 @@ def get_track(model, f_model, sigma_grid, epoched_trials):
 
     return summary
 
-# import pandas as pd
-# df = pd.DataFrame(data= [Sigmas.reshape(-1), ]
-#                   columns = [''])
 #%%
 '''
 load particular trials data and normalize
 '''
-nn_token = 'kanet_v1'
-ckpt_key = 'K_v1'
+nn_token = 'kanet_v1'  # key words used for saving checkpoint during training 
+ckpt_key = 'K_v1' # folder name used for putting saved checkpoint during training 
 subject = '01'
 raw = loadmat('/mnt/HDD/Datasets/SEED/Preprocessed_EEG/1_20131027.mat')
 epoched_trials = []
@@ -669,6 +666,7 @@ def trig_abl_plot(cross_track):
 trig_abl_plot(crossDict['eegnet'])
 # %%
 '''
+Prediction Transition Curve (PTC)
 make trajactory plots on the hyperplane x+y+z = 1
 '''
 def trace_plot_on_hp(cross_track, attach_legend=True, title=None):
