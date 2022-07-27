@@ -19,11 +19,16 @@ Scripts should run with `tensorflow>=2.8.0`
   `sigma_effect.py`: Scripts for exploring the Kernel Attention Module (KAM)'s effect on backbone network with SEED dataset.
   
   ##### Other supporting files  
+  The folder `scalp_map` contains matlab files for making scalp maps.  
   `Modules.py`: Contains custom layers used for constructing network models.  
   `Models.py`: Contains different network models.
   ``
    `Utils.py`: Some utility functions
-   `Visual.py`: Some function for general visualization purpose.  
+   `Visual.py`: Some function for general visualization purpose. 
    
 ------
 ### Demo Plots
+
+<img src="https://github.com/dykuang/BCI-Attention/blob/main/demo_plots/PTC_SEED_KAM.png" style=" width:120px ; height:120px "  >
+<img src="https://github.com/dykuang/BCI-Attention/blob/main/demo_plots/KAM_DEAP_freq_S24.png" style=" width:120px ; height:120px "  >
+<img src="https://github.com/dykuang/BCI-Attention/blob/main/demo_plots/mono_trace_S24.png" style=" width:120px ; height:120px "  >
