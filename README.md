@@ -22,13 +22,14 @@ Scripts should run with `tensorflow>=2.8.0`
   The folder `scalp_map` contains matlab files for making scalp maps.  
   `Modules.py`: Contains custom layers used for constructing network models.  
   `Models.py`: Contains different network models.
-  ``
    `Utils.py`: Some utility functions
    `Visual.py`: Some function for general visualization purpose. 
    
 ------
 ### Demo Plots
-
-<img src="https://github.com/dykuang/BCI-Attention/blob/main/demo_plots/PTC_SEED_KAM.png" style=" width:120px ; height:120px "  >
-<img src="https://github.com/dykuang/BCI-Attention/blob/main/demo_plots/KAM_DEAP_freq_S24.png" style=" width:120px ; height:120px "  >
-<img src="https://github.com/dykuang/BCI-Attention/blob/main/demo_plots/mono_trace_S24.png" style=" width:120px ; height:120px "  >
+These figures are:  
+  * The prediction transition curve under different models given the same input samples from SEED dataset. 
+  * Track of accuracies when different frequencies are filtered out from input samples.  
+  * The map from deep gram matrix's element to attention matrix's element learned by MCAM module
+ <!-- ![Image](demo_plots/PTC_SEED_KAM.png?raw=true "Title") -->
+<img src="demo_plots/PTC_SEED_KAM.png" style=" width:960px ; height:240px "><img src="demo_plots/KAM_DEAP_freq_S24_rej.png" style=" width:360px ; height:240px " ><img src="demo_plots/mono_trace_S24.png" style=" width:480px ; height:200px "  >
