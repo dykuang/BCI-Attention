@@ -83,15 +83,14 @@ def load_trained(ckpt_path, nn_token, subject,model_dict, count = 0, num_class=3
 #
 #%%
 '''
-Extracting channel attention weights for compared models.
-They will be used for scalp mappings with matlab
+Extracting channel attention weights for compared models:
 '''
 ckpt_path = '/mnt/HDD/Datasets/SEED/ckpt'
-subject_selected = 15
-model_names = ['baseline','qkv','SE','CBAM','C2A_NNR_DI','C2A_NNR_ID','C2A_NNR_0c']
-model_tokens = ['eegnet', 'qkv','SE','CBAM','C2A_NNR_mono_DI','C2A_NNR_mono_ID','C2A_NNR_0c']
-# model_names = ['baseline','qkv','SE','CBAM','K_v1']
-# model_tokens = ['eegnet', 'qkv','SE','CBAM','kanet_v1']
+subject_selected = 4
+# model_names = ['baseline','qkv','SE','CBAM','C2A_NNR_DI','C2A_NNR_ID','C2A_NNR_0c']
+# model_tokens = ['eegnet', 'qkv','SE','CBAM','C2A_NNR_mono_DI','C2A_NNR_mono_ID','C2A_NNR_0c']
+model_names = ['baseline','qkv','SE','CBAM','K_v1']
+model_tokens = ['eegnet', 'qkv','SE','CBAM','kanet_v1']
 model_dict = dict(zip(model_names, model_tokens))
 
 #%%
@@ -99,25 +98,46 @@ model_dict = dict(zip(model_names, model_tokens))
 Extracting kernel weights in the depthwise conv layer for visualizing wiht scalp maps
 '''
 
-for _s in [15]:
+# for _s in [15]:
+#     Collect = []
+#     for nn_token in model_names:
+#         W_list = []
+#         for fld  in range(5):
+#             model = load_trained(os.path.join(ckpt_path,nn_token), nn_token, _s, count = fld, 
+#                                 num_class=3, seg_len=200, lr=1e-3,model_dict=model_dict)
+#             # model = load_trained(ckpt_path, nn_token, subject_selected, count = fld, 
+#             #                      num_class=3, seg_len=200, lr=1e-3,model_dict=model_dict)
+#             W = model.get_layer('DepthConv').weights
+#             W_list.append(W[0][0].numpy())
+#         W_list = np.concatenate(W_list, axis=-1)
+#         Collect.append(W_list)
+
+
+#     ## Create target array to save, after normalization
+
+#     CC = np.array(Collect)[...,0,::2]
+#     savemat('/mnt/HDD/Datasets/SEED/benchmark_summary/ATT_SEED_7models_S{}.mat'.format(_s), {'CM':CC})
+
+for _s in [1, 4, 9, 14, 15]:
     Collect = []
     for nn_token in model_names:
         W_list = []
         for fld  in range(5):
-            model = load_trained(os.path.join(ckpt_path,nn_token), nn_token, subject_selected, count = fld, 
+            model = load_trained(os.path.join(ckpt_path,nn_token), nn_token, _s, count = fld, 
                                 num_class=3, seg_len=200, lr=1e-3,model_dict=model_dict)
             # model = load_trained(ckpt_path, nn_token, subject_selected, count = fld, 
             #                      num_class=3, seg_len=200, lr=1e-3,model_dict=model_dict)
-            W = model.get_layer('DepthConv').weights
-            W_list.append(W[0][0].numpy())
-        W_list = np.concatenate(W_list, axis=-1)
-        Collect.append(W_list)
+            W = model.get_layer('DepthConv').weights 
+            W_list.append(W[0][0].numpy()) # (62, 8, 2)
+        W_list = np.concatenate(W_list, axis=-1) # (62, 8, 10)
+        Collect.append(W_list.reshape(62,-1))
 
 
     ## Create target array to save, after normalization
 
-    CC = np.array(Collect)[...,0,::2]
-    savemat('/mnt/HDD/Datasets/SEED/benchmark_summary/ATT_SEED_7models_S{}.mat'.format(_s), {'CM':CC})
+    CC = np.array(Collect)
+    savemat('/mnt/HDD/Datasets/SEED/benchmark_summary/SEED_scalp_all_models_S{:02d}.mat'.format(_s), {'CM':CC})
+
 
 #%%
 '''
@@ -312,6 +332,23 @@ with plt.style.context('ggplot'): # compare with resutls from SEED
 '''
 Sensitivity on Frequencies
 '''
+from scipy import signal
+def batch_band_pass(values, low_end_cutoff, high_end_cutoff, sampling_freq, btype='bandpass'):
+    assert len(values.shape) == 3, "wrong input shape"
+    S, T, C = values.shape
+    X_filtered = np.empty(values.shape)
+    lo_end_over_Nyquist = low_end_cutoff/(0.5*sampling_freq)
+    hi_end_over_Nyquist = high_end_cutoff/(0.5*sampling_freq)
+
+    bess_b,bess_a = signal.iirfilter(5,
+                Wn=[lo_end_over_Nyquist,hi_end_over_Nyquist],
+                btype=btype, ftype='bessel')
+                
+    for i in range(S):
+        for j in range(C):
+            X_filtered[i,:,j] = signal.filtfilt(bess_b,bess_a,values[i,:,j])
+    
+    return X_filtered
 
 X = loadmat( os.path.join(data_path, 'S{:02d}_E01.mat'.format(subject_selected)) )['segs'].transpose([2,1,0])
 chns = np.arange(62)
@@ -321,11 +358,25 @@ Y = loadmat( os.path.join(data_path, 'Label.mat') )['seg_labels'][0]+1
 
 
 #%%
-from Utils import batch_band_pass
-data_seq = [ batch_band_pass(X, 0.1, hp, 200) for hp in [10*i for i in range(1,10)]]
+# data_seq = [ batch_band_pass(X, 0.1, hp, 200) for hp in [10*i for i in range(1,10)]] #bandpass case
+
+#=================
+rej_band = [(l, l+10) for l in range(10,90,10)]
+rej_band.append((90, 99.99))
+rej_band.insert(0, (1,10))
+
+data_seq = [ batch_band_pass(X, lp, hp, 200, btype='bandstop') for 
+             (lp,hp) in rej_band ] #bandstop case
 data_seq.append(X)
 data_seq = [zscore(_d, axis=1) for _d in data_seq]
 
+# X_N = zscore(X, axis=1)
+# data_seq = [ batch_band_pass(X_N, lp, hp, 200, btype='bandstop') for 
+#              (lp,hp) in rej_band ] #bandstop case
+# data_seq.append(X_N)
+#=====================
+
+#%%
 freq_dict = {}
 
 for _name, _m in cpr_model.items():
@@ -340,12 +391,13 @@ for _name, _m in cpr_model.items():
         freq_p.append(b )
     freq_dict[_name] = np.array(freq_p)   
 
-
-plt.figure()
-freq_grid = [10*i for i in range(1,11)]
-# ll = ['EEGNet', '+QKV',  '+SE', '+CBAM', '+M1', '+M2', '+M3']
-ll = ['EEGNet', '+QKV',   '+CBAM', '+SE','+M1', '+M2', '+M3']
-count = 0
+#======================
+# band pass case
+# plt.figure()
+# freq_grid = [10*i for i in range(1,11)]
+# ll = ['EEGNet', '+QKV',  '+SE', '+CBAM', '+KAM']
+# ll = ['EEGNet', '+QKV',   '+CBAM', '+SE','+M1', '+M2', '+M3']
+# count = 0
 # for _k, _v in freq_dict.items():
 #     plt.plot(freq_grid, _v[:,0], 'd--',label = ll[count])
 #     count += 1
@@ -354,14 +406,38 @@ count = 0
 # plt.ylabel('Acc')
 # plt.legend(loc = 'upper left')
 
-# for _k in ['baseline', 'qkv', 'SE', 'CBAM', 'C2A_NNR_0c', 'C2A_NNR_ID', 'C2A_NNR_DI']:
-for _k in ['baseline', 'qkv', 'CBAM', 'SE', 'C2A_NNR_0c', 'C2A_NNR_ID', 'C2A_NNR_DI']:
-    plt.plot(freq_grid, freq_dict[_k][:,0], 'd--',label = ll[count])
+# for _k in ['baseline', 'qkv', 'CBAM', 'SE', 'C2A_NNR_0c', 'C2A_NNR_ID', 'C2A_NNR_DI']:
+#     plt.plot(freq_dict[_k][:,0], 'd--',label = ll[count])
+#     count += 1
+# plt.ylim([0.25, 1.0])
+# plt.xlabel('Hz')
+# plt.ylabel('Acc')
+# plt.legend(loc = 'upper left')
+# plt.grid()
+#===========================================
+
+#%%
+##================================
+# For bandreject case
+# with plt.style.context('ggplot'):    
+plt.figure()
+freq_grid = [10*i for i in range(1,11)]
+ll = ['EEGNet', '+QKV',  '+SE', '+CBAM', '+KAM']
+# ll = ['EEGNet', '+QKV',   '+CBAM', '+SE','+M1', '+M2', '+M3']
+count = 0
+# for _k in ['baseline', 'qkv', 'CBAM', 'SE', 'C2A_NNR_0c', 'C2A_NNR_ID', 'C2A_NNR_DI']:
+for _k in ['baseline', 'qkv', 'CBAM', 'SE', 'K_v1']:
+    plt.plot(freq_dict[_k][:,0], 'd--',label = ll[count])
     count += 1
-plt.ylim([0.25, 1.0])
+plt.ylim([0.5, 1.0])
+plt.xticks(np.arange(freq_dict[_k].shape[0]), 
+        labels=['1-10', '10-20', '20-30', '30-40', '40-50', '50-60',
+                '60-70', '70-80', '80-90', '90-99.99', 'original'], rotation=-45)
+plt.legend(loc = 'lower left')
 plt.xlabel('Hz')
 plt.ylabel('Acc')
-plt.legend(loc = 'upper left')
+plt.grid()
+##=================================
 #%%
 '''
 Prediction Transition Curve

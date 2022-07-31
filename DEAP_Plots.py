@@ -224,12 +224,35 @@ def load_trained(ckpt_path, nn_token, subject, exp_type, val_mode='random',
 Extracting channel attention weights for compared models:
 '''
 ckpt_path = '/mnt/HDD/Benchmarks/DEAP/ckpt'
-subject_selected = 24
-# model_compared = ['EEGNet', 'QKV',  'CBAM', 'SE', 'Mnt_no', 'Mnt_ID', 'Mnt_DI']
-model_compared = ['EEGNet', 'QKV', 'SE', 'CBAM', 'KAM']
+subject_selected = 32
+model_compared = ['EEGNet', 'QKV',  'CBAM', 'SE', 'Mnt_no', 'Mnt_ID', 'Mnt_DI']
+# model_compared = ['EEGNet', 'QKV', 'SE', 'CBAM', 'KAM']
 #%%
 
-for _s in [7, 8, 12, 24, 31]:
+# for _s in [7, 8, 12, 24, 31]:
+
+#     Collect = []
+
+#     for nn_token in model_compared:
+#         W_list = []
+#         for fld  in range(10):
+#             model = load_trained(ckpt_path, nn_token, _s, exp_type, val_mode, 
+#                                 count = fld, num_class=4, seg_len=128, lr=1e-3)
+#             W = model.get_layer('DepthConv').weights
+#             W_list.append(W[0][0].numpy()) #(32, 8, 2)
+#         W_list = np.concatenate(W_list, axis=-1) #(32,  8, 20)
+#         Collect.append(W_list)
+
+
+#     ## Create target array to save, after normalization
+
+#     CC = np.array(Collect)[...,0,::2]
+#     # savemat('/mnt/HDD/Benchmarks/DEAP/ATT_DEAP_7models_S{:02d}.mat'.format(_s), {'CM':CC})
+#     savemat('/mnt/HDD/Benchmarks/DEAP/ATT_DEAP_5models_S{:02d}.mat'.format(_s), {'CM':CC})
+#     # savemat('/mnt/HDD/Benchmarks/DEAP/ATT_DEAP_QKV_S{:02d}.mat'.format(_s), {'CM':CC})
+
+
+for _s in [8, 12, 16, 24, 32]:
 
     Collect = []
 
@@ -239,17 +262,16 @@ for _s in [7, 8, 12, 24, 31]:
             model = load_trained(ckpt_path, nn_token, _s, exp_type, val_mode, 
                                 count = fld, num_class=4, seg_len=128, lr=1e-3)
             W = model.get_layer('DepthConv').weights
-            W_list.append(W[0][0].numpy())
-        W_list = np.concatenate(W_list, axis=-1)
-        Collect.append(W_list)
+            W_list.append(W[0][0].numpy()) #(32, 8, 2)
+        W_list = np.concatenate(W_list, axis=-1) #(32,  8, 20)
+        Collect.append(W_list.reshape(32, -1))
 
 
     ## Create target array to save, after normalization
 
-    CC = np.array(Collect)[...,0,::2]
+    CC = np.array(Collect)
     # savemat('/mnt/HDD/Benchmarks/DEAP/ATT_DEAP_7models_S{:02d}.mat'.format(_s), {'CM':CC})
-    savemat('/mnt/HDD/Benchmarks/DEAP/ATT_DEAP_5models_S{:02d}.mat'.format(_s), {'CM':CC})
-    # savemat('/mnt/HDD/Benchmarks/DEAP/ATT_DEAP_QKV_S{:02d}.mat'.format(_s), {'CM':CC})
+    savemat('/mnt/HDD/Benchmarks/DEAP/DEAP_scalp_all_models_S{:02d}.mat'.format(_s), {'CM':CC})
 
 # %%
 '''
@@ -406,19 +428,19 @@ def get_att_map(model):
 #%%
 fig, ax = plt.subplots(1,3)
 
-att = get_att_map(cpr_model[3])
+att = get_att_map(cpr_model[-3])
 cc = att.predict(pts.reshape([-1,1,1,1]))[:,0,0,0]
 ax[0].plot(pts, cc)
 ax[0].axvline(x=0, color='red', linestyle='--')
 ax[0].set_ylim([0, 1])
 
-att = get_att_map(cpr_model[4])
+att = get_att_map(cpr_model[-2])
 cc = att.predict(pts.reshape([-1,1,1,1]))[:,0,0,0]
 ax[1].plot(pts, cc)
 ax[1].axvline(x=0, color='red', linestyle='--')
 ax[1].set_ylim([0, 1])
 
-att = get_att_map(cpr_model[5])
+att = get_att_map(cpr_model[-1])
 cc = att.predict(pts.reshape([-1,1,1,1]))[:,0,0,0]
 ax[2].plot(pts, cc)
 ax[2].axvline(x=0, color='red', linestyle='--')
@@ -438,7 +460,7 @@ for nn_token in ['Mnt_no', 'Mnt_ID', 'Mnt_DI']:
     mono_list.append(np.array(temp_list))
 
 with plt.style.context('ggplot'): # compare with resutls from SEED
-    fig, ax = plt.subplots(1,3)
+    fig, ax = plt.subplots(1,3, figsize=(6,4))
     for i in range(3):
         _mean = np.mean(mono_list[i], axis=0)
         _std = np.std(mono_list[i], axis=0)
@@ -531,11 +553,14 @@ from Utils import batch_band_pass
 segs_to_check_tst = make_segs(data_N[:,6000:,:], 128, 128)
 Ytest = np.repeat(label_VA, segs_to_check_tst.shape[0]//40, axis=0)
 # data_seq = [ batch_band_pass(segs_to_check_tst, 0.1, hp, 128) for hp in [60, 50, 40, 30, 20, 10] ]
-rej_low = [0.01]
-rej_low += [l for l in range(8,56,8)]
-rej_low.append(55.99)
-data_seq = [ batch_band_pass(segs_to_check_tst, lp, lp+8, 128, btype='bandstop') for lp in rej_low ]
-data_seq.insert(0, segs_to_check_tst)
+# data_seq.insert(0, segs_to_check_tst)
+
+rej_band = [(l, l+8) for l in range(8,56,8)]
+rej_band.append((56, 63.99))
+rej_band.insert(0, (1, 8))
+data_seq = [ batch_band_pass(segs_to_check_tst, lp, hp, 128, btype='bandstop') for 
+             (lp,hp) in rej_band ]
+data_seq.append(segs_to_check_tst)
 
 #%%
 freq_dict = {}
@@ -583,18 +608,19 @@ for _name, _m in zip(model_compared, cpr_model):
 # with plt.style.context('ggplot'):    
 plt.figure()
 # freq_grid = [10, 20, 30, 40, 50, 60, 64]
-ll = ['EEGNet', '+QKV',  '+SE', '+CBAM', '+KAM']
+# ll = ['EEGNet', '+QKV',  '+SE', '+CBAM', '+KAM']
+ll = ['EEGNet', '+QKV', '+CBAM', '+SE','+M1', '+M2', '+M3']
 count = 0
 for _k, _v in freq_dict.items():
-    plt.plot(_v[::-1,0], 'd--',label = ll[count])
+    plt.plot(_v[:,0], 'd--',label = ll[count])
     count += 1
 plt.ylim([0.25, 1.0])
+plt.xticks(np.arange(_v.shape[0]), 
+        labels=['1-8', '8-16', '16-24', '24-32', '32-40', '40-48',
+                '48-56', '56-63.99', 'original'], rotation=-45)
+plt.legend(loc = 'lower right')
 plt.xlabel('Hz')
 plt.ylabel('Acc')
-plt.xticks(np.arange(_v.shape[0]), 
-        labels=['0.01-8', '8-16', '16-24', '24-32', '32-40', '40-48',
-                    '48-56', '56-63.99', 'original'], rotation=-45)
-plt.legend(loc = 'lower left')
 plt.grid()
 
 #%%
