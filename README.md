@@ -1,6 +1,9 @@
 # BCI-Attention
 A repository including multiple attentional module designs for brain signal recognition tasks.
-Scripts should run with `tensorflow>=2.8.0`
+Scripts should run with `tensorflow>=2.8.0`  
+Preprints associated with this repo:  
+    * [KAM -- a Kernel Attention Module for Emotion Classification with EEG Data](https://arxiv.org/abs/2208.08161)  
+    * [A Monotonicity Constrained Attention Module for Emotion Classification with Limited EEG Data](https://arxiv.org/abs/2208.08155)  
 
 ------
 
@@ -28,10 +31,15 @@ Scripts should run with `tensorflow>=2.8.0`
 ------
 ### Demo Plots
 Figures below are:  
+  * A simple demo of the idea of prediction transition curve on trinary classification tasks.   
   * The prediction transition curve under different models given the same input samples from SEED dataset. 
   * Track of accuracies when different frequencies are filtered out from input samples.  
-  * The map from deep gram matrix's element to attention matrix's element learned by MCAM module
+  * The map from deep gram matrix's element to attention matrix's element learned by MCAM module  
+  * Different scalp patterns (kernel weights of the first Depthwise convolutional layer) when various attention modules are inserted. First row: mean, second row: std, third row: top-5 correlated channel pairs (red: +, blue: -).  
   * The effect of different $\alpha$ value on layer dense layer's output. Visualized via UMAP.
  <!-- ![Image](demo_plots/PTC_SEED_KAM.png?raw=true "Title") -->
-<img src="demo_plots/PTC_SEED_KAM.png" style=" width:720px ; height:120px "><img src="demo_plots/KAM_DEAP_freq_S24_rej.png" style=" width:360px ; height:240px " ><img src="demo_plots/mono_trace_S24.png" style=" width:480px ; height:200px "  >
-<img src="demo_plots/umap_track_SEED.gif" style=" width:720px ; height:360px ">
+<img src="demo_plots/PTC_demo.png" style=" width:360px ; height:180px ">
+<img src="demo_plots/PTC_SEED_KAM.png" style=" width:720px ; height:120px ">  
+<img src="demo_plots/KAM_DEAP_freq_S16_rej.png" style=" width:260px ; height:200px"><img src="demo_plots/mono_trace_S24.png" style=" width:480px ; height:200px>  
+<img src="demo_plots/SEED_KAM_scalp_3rows_S4.png" style=" width:680px ; height:280px ">  
+<img src="demo_plots/umap_track_SEED.gif" style=" width:640px ; height:360px ">
