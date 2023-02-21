@@ -1,8 +1,3 @@
-'''
-Main script for training with DEAP dataset
-'''
-
-
 #%%
 from random import sample
 import  numpy as np 
@@ -15,15 +10,15 @@ from sklearn.metrics import confusion_matrix
 from Utils import scores
 from Models import *
 import os
-#os.environ["CUDA_VISIBLE_DEVICES"]="1" 
+# os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 from scipy.io import loadmat
 
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--subject', help='subject index')
-parser.add_argument('--expType', help='subject index')
-parser.add_argument('--nn_token', help='subject index')
-parser.add_argument('--valMode', help='subject index')  # 'random' or 'fix'
+parser.add_argument('--expType', help='experiment type') # 0: H/L Valence  1: H/L arousal 2: H/L V/A
+parser.add_argument('--nn_token', help='short token for models')
+parser.add_argument('--valMode', help='how validation is formed')  # 'random' or 'fix'
 
 args = parser.parse_args()
 
@@ -138,6 +133,133 @@ def make_segs(data, seg_len, stride):
     return segs.reshape((-1, seg_len, data.shape[-1]))
 
 
+
+#%% Building models
+# from keras_swin_template import SwinTransformer, PatchExtract, PatchEmbedding, PatchMerging
+from tensorflow.keras import Model, layers, losses, metrics
+import tensorflow_addons as tfa
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.constraints import max_norm
+
+# try pretrained with layer initialization?
+# def EEGNet(nb_classes, Chans = 64, Samples = 128, 
+#              dropoutRate = 0.5, kernLength = 64, F1 = 8, 
+#              D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
+#              optimizer = Adam, learning_rate = 1e-3):
+   
+#     if dropoutType == 'SpatialDropout2D':
+#         dropoutType = layers.SpatialDropout2D
+#     elif dropoutType == 'Dropout':
+#         dropoutType = layers.Dropout
+#     else:
+#         raise ValueError('dropoutType must be one of SpatialDropout2D '
+#                          'or Dropout, passed as a string.')
+    
+#     input1   = layers.Input(shape = (Samples, Chans, 1))
+
+#     # block1       = layers.Lambda(lambda x: x[...,0])(input1)
+#     # # block1       = ButterW(name='BW')(block1)
+#     # block1       = layers.Permute((2,1))(block1)
+#     # block1       = K_attention(name = 'Katt')(block1)
+#     # block1       = layers.Permute((2,1))(block1)
+#     # block1       = layers.Lambda(lambda x: x[...,None])(block1)
+
+
+#     ##################################################################
+#     # block1       = layers.Conv2D(F1, (kernLength, 1), padding = 'same',
+#     #                                use_bias = False, name = 'Conv2D')(block1)
+#     block1       = layers.Conv2D(F1, (kernLength, 1), padding = 'same',
+#                                    use_bias = False, name = 'Conv2D')(input1)
+
+#     # block1       = R_corr(name = 'Rcorr', corr_passed=np.zeros((8,8)).astype(np.float32))(block1)
+#     # block1       = R_corr(name = 'Rcorr', corr_passed=None)(block1)
+    
+#     block1       = layers.BatchNormalization(axis = -1, name='BN-1')(block1)  # normalization on channels or time
+#     block1       = layers.DepthwiseConv2D((1, Chans), use_bias = False, 
+#                                    depth_multiplier = D,
+#                                    depthwise_constraint = max_norm(1.),
+#                                    name = 'DepthConv')(block1)
+#     block1       = layers.BatchNormalization(axis = -1, name = 'BN-2')(block1)
+#     block1       = layers.Activation('elu')(block1)
+
+#     block1       = layers.AveragePooling2D((2, 1))(block1)
+#     block1       = dropoutType(dropoutRate)(block1)
+    
+#     block2       = layers.SeparableConv2D(F2, (5, 1),
+#                                    use_bias = False, padding = 'same',
+#                                     name = 'SepConv-1')(block1)
+
+#     # block2       = R_corr(name = 'Rcorr')(block2)
+#     # block2       = attach_attention_module(block2, 'se_block')
+#     # block2       = layers.Lambda(lambda x: x[...,0,:])(block2)
+#     # block2       = K_attention(name = 'Katt')(block2, use_mask=False)
+#     # block2       = C_attention(name = 'Catt')(block2, use_mask=False)
+#     # block2       = K_attention_MH(num_heads=2, name='Katt')(block2)
+#     # block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
+#                                 #  name='Katt')(block2,kernel='Linear',use_mask=False)
+#     # block2       = layers.Lambda(lambda x: x[...,None,:])(block2)
+
+#     block2       = layers.BatchNormalization(axis = -1, name = 'BN-3')(block2)
+#     block2       = layers.Activation('elu')(block2)
+#     block2       = layers.AveragePooling2D((2, 1))(block2)
+#     block2       = dropoutType(dropoutRate)(block2)
+       
+#     flatten      = layers.Flatten(name = 'flatten')(block2)
+    
+#     dense        = layers.Dense(nb_classes, name = 'last_dense', 
+#                          kernel_constraint = max_norm(norm_rate))(flatten)
+#     softmax      = layers.Activation('softmax', name = 'softmax')(dense)
+    
+#     Mymodel      = Model(inputs=input1, outputs=softmax)
+    
+#     Mymodel.compile(loss='categorical_crossentropy', 
+#                     metrics=['accuracy'],
+#                     optimizer=optimizer(learning_rate=learning_rate))
+    
+#     return Mymodel
+
+
+#%%
+# def Deapnet(nb_classes, Chans = 64, Samples = 256,
+#                 dropoutRate = 0.2,
+#                 input_shape = (256,1),
+#                 penalty_rate=1.0, mono_mode ='ID',
+#                 optimizer = Adam
+#                 #learning_rate = 1e-3
+#                 ):
+
+#     #input = Input(shape=(Chans,1))
+#     input = layers.Input(shape = (Samples, Chans))
+#     block1 = layers.Conv1D(128, 3, activation='relu')(input)
+#     block1 = layers.MaxPooling1D(pool_size=2)(block1)
+#     block1 = layers.Dropout(dropoutRate)(block1)
+
+#     block2 = layers.Conv1D(128, 3,  activation='relu')(block1)
+#     #block2,penalty = FC_mono(name = 'att_mono', penalty_rate=1.0, mono_mode=mono_mode)(block2, offdiag_mask=True, use_mask=False)
+#     block2 = layers.Dropout(dropoutRate)(block2)
+
+#     block3 = layers.GRU(units = 256, return_sequences=True)(block2)
+#     block3 = layers.Dropout(dropoutRate)(block3)
+
+#     block4 = layers.GRU(units = 32)(block3)
+#     block4 = layers.Dropout(dropoutRate)(block4)
+
+#     flatten = layers.Flatten()(block4)
+
+#     dense1 = layers.Dense(units = 128, activation='relu')(flatten)
+#     block5 = layers.Dropout(dropoutRate)(dense1)
+
+#     dense2 = layers.Dense(units = nb_classes)(block5)
+#     softmax = layers.Activation('softmax')(dense2)
+
+#     Mymodel  = Model(inputs=input, outputs=softmax)
+    
+#     # Mymodel.compile(loss='categorical_crossentropy', 
+#     #                 metrics=['accuracy'],
+#     #                 optimizer= 'adam')
+    
+#     return Mymodel
+
 #%%
 batchsize = 256
 seg_len = 128
@@ -190,6 +312,48 @@ elif nn_token == 'QKV':
                   dropoutRate = 0.5, kernLength = 5, F1 = 8, 
                   D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
                   optimizer = Adam, learning_rate = lr) 
+elif nn_token in ['DCN']:
+    model = DeepConvNet(nb_classes = num_class, Chans = 32, Samples = seg_len,
+                dropoutRate = 0.25, attention_type = None,
+                optimizer = Adam, learning_rate = lr)
+elif nn_token in ['DCN_KAM']:
+    model = DeepConvNet(nb_classes = num_class, Chans = 32, Samples = seg_len,
+                dropoutRate = 0.25, attention_type = 'KAM',
+                optimizer = Adam, learning_rate = lr)
+elif nn_token in ['SEER']:
+    Params = {
+        'shape': (seg_len, 32),
+        'num classes': num_class,
+        'depth_act': 'tanh',
+        'sep_act': 'linear',
+        'merge': 'A',
+        'WD_spec' : [[8, 5, 1]]*1, # num, kernel length, stride
+        'depth multiplier':1,
+        'depth rate':1,
+        'merge ker num': 8,
+        'merge ker len': 5,
+        'num_filters_list':[8, 8], 
+        'kernel_size_list':[5,5],
+        'strides_for_pool':[2,2],   
+        'droprate':0.5, 
+        'spatial droprate': 0.0,
+        'normrate_head': 1.0, 
+        'normrate_dense':0.25,
+        'lr':lr
+        }
+    model = TFCNet_multiWD(Params['shape'], Params['num classes'], 
+                           dep_activation =  Params['depth_act'], sep_activation =  Params['sep_act'],
+                           merge_style = Params['merge'], use_WD = False,
+                           WDspec_list = Params['WD_spec'], # Number, len, strides
+                           depth_multiplier = Params['depth multiplier'], depth_rate=Params['depth rate'], 
+                           merge_kernel_num = Params['merge ker num'], merge_kernel_len = Params['merge ker len'],
+                           num_filters_list = Params['num_filters_list'], kernel_size_list=Params['kernel_size_list'],
+                           strides_for_pool=Params['strides_for_pool'],
+                           learning_rate=Params['lr'], droprate=Params['droprate'], 
+                           spatial_droprate=Params['spatial droprate'],
+                           normrate_head=Params['normrate_head'], 
+                           normrate_dense = Params['normrate_dense'])
+
 else:
     assert('nn_token not recognized.')
 # model = Deapnet(2, Chans=32, Samples = 128, dropoutRate=0.2)
@@ -231,7 +395,7 @@ else:
 #                 metrics=['accuracy'],
 #                 optimizer= Adam(learning_rate= lr))
 model.summary()
-
+model.save_weights('/mnt/HDD/Benchmarks/DEAP/model_ini.h5') # save the initial weights
 #%% Pretrained with EEGNET
 
 train_win = (0, 5000)
@@ -295,6 +459,7 @@ for i in range(10):
                           mode='max',
                           save_best_only=True)
 
+    model.load_weights('/mnt/HDD/Benchmarks/DEAP/model_ini.h5') # same initialization before fit
     hist = model.fit(train_gen,
                     epochs=10, 
                     steps_per_epoch= (train_win[1] - train_win[0]-seg_len)*40//batchsize,
@@ -308,7 +473,7 @@ for i in range(10):
                         )
 
         
-    model.load_weights(cpt_path)
+    model.load_weights(cpt_path) #load best validation model
     pred = model.predict(Xtest)
     CM = confusion_matrix(np.argmax(Ytest,axis=1), np.argmax(pred, axis=1))
     # print(CM)
@@ -342,3 +507,20 @@ np.save('/mnt/HDD/Benchmarks/DEAP/summary/S{}_{}_type{}_{}'.format(subject, nn_t
 np.save('/mnt/HDD/Benchmarks/DEAP/summary/SW{}_{}_type{}_{}'.format(subject, nn_token, exp_type, val_mode), summary_weighted)
 np.save('/mnt/HDD/Benchmarks/DEAP/summary/CM_S{}_{}_type{}_{}'.format(subject, nn_token, exp_type, val_mode), ConM)
 
+
+# with plt.style.context('bmh'):
+#     plt.figure()
+#     plt.subplot(1,2,1)
+#     plt.plot(hist.history['loss'])
+#     plt.plot(hist.history['val_loss'])
+#     plt.title('Loss')
+#     plt.subplot(1,2,2)
+#     plt.plot(hist.history['accuracy'])
+#     plt.plot(hist.history['val_accuracy'])
+#     plt.title('Accuracy')
+
+
+# print(accuracy_score(np.argmax(YTest_V, axis=1), np.argmax(pred, axis=1)))
+# CM = confusion_matrix(np.argmax(YTest_V, axis=1), np.argmax(pred, axis=1))
+# print(CM )
+# %%
