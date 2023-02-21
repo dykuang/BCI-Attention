@@ -16,9 +16,9 @@ from scipy.io import loadmat
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--subject', help='subject index')
-parser.add_argument('--expType', help='subject index')
-parser.add_argument('--nn_token', help='subject index')
-parser.add_argument('--valMode', help='subject index')  # 'random' or 'fix'
+parser.add_argument('--expType', help='experiment type') # 0: H/L Valence  1: H/L arousal 2: H/L V/A
+parser.add_argument('--nn_token', help='short token for models')
+parser.add_argument('--valMode', help='how validation is formed')  # 'random' or 'fix'
 
 args = parser.parse_args()
 
