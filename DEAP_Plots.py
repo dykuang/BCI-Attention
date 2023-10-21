@@ -25,6 +25,8 @@ Load Detailed scores
 '''
 
 model_names = ['EEGNet','SE', 'CBAM', 'Mnt_DI', 'Mnt_ID', 'Mnt_no', 'QKV','KAM']
+# model_names = ['EEGNet','SEER', 'DCN', 'DCN_KAM']
+# model_names = ['EEGNet', 'QKV', 'SE', 'CBAM', 'KAM']
 summary_path = 'mnt/HDD/Benchmarks/DEAP/summary'
 exp_type =2
 val_mode = 'random'
@@ -210,7 +212,15 @@ def load_trained(ckpt_path, nn_token, subject, exp_type, val_mode='random',
         model = KANet(nb_classes = num_class, Chans = 32, Samples = seg_len, 
                     dropoutRate = 0.5, kernLength = 5, F1 = 8, 
                     D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
-                    optimizer = Adam, learning_rate = lr)    
+                    optimizer = Adam, learning_rate = lr)   
+    elif nn_token in ['DCN']:
+        model = DeepConvNet(nb_classes = num_class, Chans = 32, Samples = seg_len,
+                    dropoutRate = 0.25, attention_type = None,
+                    optimizer = Adam, learning_rate = lr)
+    elif nn_token in ['DCN_KAM']:
+        model = DeepConvNet(nb_classes = num_class, Chans = 32, Samples = seg_len,
+                    dropoutRate = 0.25, attention_type = 'KAM',
+                    optimizer = Adam, learning_rate = lr)
     else:
         assert 'nn_token not recognized.'
 
@@ -227,6 +237,8 @@ ckpt_path = '/mnt/HDD/Benchmarks/DEAP/ckpt'
 subject_selected = 32
 model_compared = ['EEGNet', 'QKV',  'CBAM', 'SE', 'Mnt_no', 'Mnt_ID', 'Mnt_DI']
 # model_compared = ['EEGNet', 'QKV', 'SE', 'CBAM', 'KAM']
+# model_compared = ['EEGNet', 'QKV',  'CBAM', 'SE', 'Mnt_no', 'Mnt_ID', 'Mnt_DI','KAM']
+
 #%%
 
 # for _s in [7, 8, 12, 24, 31]:
@@ -272,6 +284,104 @@ for _s in [8, 12, 16, 24, 32]:
     CC = np.array(Collect)
     # savemat('/mnt/HDD/Benchmarks/DEAP/ATT_DEAP_7models_S{:02d}.mat'.format(_s), {'CM':CC})
     savemat('/mnt/HDD/Benchmarks/DEAP/DEAP_scalp_all_models_S{:02d}.mat'.format(_s), {'CM':CC})
+
+
+#%%
+'''
+Try exploring the weight correlation among sensor locations
+'''
+from scipy.io import loadmat
+
+def get_most_correlated_pairs(CMatrix, topN=5, symmetry=True):
+    '''
+    Assuming Cmatrix is 2d
+    '''
+    rr, cc = CMatrix.shape
+    if symmetry:
+        coord_2d = []
+        val = []
+        for i in range(1, rr):
+            for j in range(i):
+                coord_2d.append((i,j))
+                val.append(CMatrix[i,j])
+        sorted = np.argsort(np.array(val))
+        max_loc = [coord_2d[ii] for ii in sorted[-topN:]]
+        min_loc = [coord_2d[ii] for ii in sorted[:topN]]
+
+        
+    else:
+        sorted = np.argsort(np.reshape(CMatrix, -1))
+        
+        max_cor_idx = sorted[-topN:]
+        min_cor_idx = sorted[:topN]
+        
+        max_loc = [(idx//rr, idx%cc) for idx in max_cor_idx]
+        min_loc = [(idx//rr, idx%cc) for idx in min_cor_idx]
+
+    
+    return max_loc, min_loc
+
+def link_cor_2d(Cmatrix, Coord_2d, topN=5):
+
+    max_loc, min_loc = get_most_correlated_pairs(Cmatrix, topN)
+
+    plt.figure(figsize=(6,6))
+    plt.plot(Coord_2d[:,0], Coord_2d[:,1], 'k.', markersize=20)
+    for _p in max_loc:
+        plt.plot([Coord_2d[_p[0],0],  Coord_2d[_p[1],0]],
+                [Coord_2d[_p[0],1],  Coord_2d[_p[1],1]], 'r', linewidth=3)
+    for _p in min_loc:
+        plt.plot([Coord_2d[_p[0],0],  Coord_2d[_p[1],0]],
+                [Coord_2d[_p[0],1],  Coord_2d[_p[1],1]], 'b',linewidth=3)
+
+    plt.xlim([-0.6,0.6])
+    plt.ylim([-0.6, 0.6])
+    plt.grid(False)
+    plt.axis('off')
+
+#%%
+import pickle
+with open('./ch_pos_1020.pkl', 'rb') as pkl:
+    pos_dict = pickle.load(pkl)
+
+if subject_selected<23:
+    ch_list = ['Fp1', 'AF3', 'F7', 'F3', 'FC1', 'FC5',
+                'T7', 'C3', 'CP1', 'CP5', 'P7', 'P3',
+                'Pz', 'PO3', 'O1', 'Oz', 'O2', 'PO4',
+                'P4', 'P8', 'CP6', 'CP2', 'C4', 'T8',
+                'FC6', 'FC2', 'F4', 'F8', 'AF4', 'Fp2',
+                'Fz', 'Cz'
+    ]; 
+else:
+    ch_list = ['Fp1', 'AF3', 'F3', 'F7', 'FC5', 'FC1',
+                'C3', 'T7', 'CP5', 'CP1', 'P3', 'P7',
+              'PO3', 'O1', 'Oz', 'Pz', 'Fp2', 'AF4',
+              'Fz', 'F4', 'F8', 'FC6', 'FC2', 'Cz',
+              'C4', 'T8', 'CP6', 'CP2', 'P4', 'P8',
+              'PO4', 'O2'
+              ]
+
+XY = []
+for ch in ch_list:
+    if ch in pos_dict.keys():
+        XY.append(pos_dict[ch][:2])
+XY = np.array(XY)
+              
+scalp_weights = loadmat('/mnt/HDD/Benchmarks/DEAP/DEAP_scalp_all_models_S{:02d}.mat'.format(subject_selected))['CM']
+
+# For each model, get the most correlated channel and max correlated channel pair
+
+# cor = np.corrcoef(scalp_weights[0])
+
+for _w in scalp_weights:
+    cor = np.corrcoef(_w)
+    link_cor_2d(cor, XY)
+# plt.figure()
+# XY = []
+# for _k, _v in pos_dict.items():
+#     plt.text(_v[0], _v[1], _k)
+# plt.xlim([-0.2,0.2])
+# plt.ylim([-0.2, 0.2])
 
 # %%
 '''
@@ -470,6 +580,43 @@ with plt.style.context('ggplot'): # compare with resutls from SEED
         ax[i].set_ylim([0, 1])  
         ax[i].set_title('M{}'.format(i+1))  
         ax[i].legend(loc = 'upper left')   
+
+#%%
+'''make some sample feature plots'''
+
+feature_list = []
+for nn_token in ['Mnt_no', 'Mnt_ID', 'Mnt_DI']:
+    temp = []
+    for fld  in range(10):
+        model = load_trained(ckpt_path, nn_token, subject_selected, exp_type, val_mode, 
+                             count = fld, num_class=4, seg_len=128, lr=1e-3)
+        fmap = Model(model.input,  
+                     model.get_layer('att_mono').output[0] 
+                     - model.get_layer('SepConv-1').output[...,0,:] ) #get the difference
+        temp.append(fmap.predict(segs_to_check))
+
+    feature_list.append(np.array(temp))
+
+feature_list = np.array(feature_list) # (monotype, folds, samples, ...)
+feature_list_m = np.mean(feature_list, axis= 1) # mean over folds
+
+rnd_ind = 10
+
+Feature2Plot = feature_list_m[:,[np.where(baseline_label ==i)[0][rnd_ind] for i in range(4)],...] #(monotype, label, ...)
+# Feature2Plot = Feature2Plot/np.max(np.abs(Feature2Plot), keepdims=True) # normalization 
+
+#%%
+with plt.style.context('ggplot'): 
+    fig, ax = plt.subplots(4,3,figsize=(8,6))
+    for i in range(4):
+        for j in range(3):
+            _im = ax[i][j].imshow(Feature2Plot[j,i].T, cmap = 'jet')
+            ax[i][j].set_axis_off()
+    plt.colorbar(_im, ax=ax.ravel().tolist() ) 
+            
+
+
+
 # %%
 '''
 Gradcam
@@ -628,7 +775,7 @@ plt.grid()
 
 Correct_list = []
 # for i in [0, 1, 2, 5]:
-for i in range(5):
+for i in range(len(cpr_model)):
     temp_correct, _ = get_CM_idx(cpr_model[i], segs_to_check, baseline_label)
     Correct_list.append(temp_correct)
 
@@ -636,13 +783,13 @@ def common(lst1, lst2):
     return list(set(lst1) & set(lst2))
 
 Common_idx = []
-for j in range(4): #j for labels
+for j in range(len(label_meaning)): #j for labels
     a = Correct_list[0][j].copy()
-    for i in range(1,4): #i for models
+    for i in range(1,len(cpr_model)): #i for models
         a = common(a, Correct_list[i][j])
     Common_idx.append(a)
 
-for i in range(3):
+for i in range(len(label_meaning)):
     print(len(Common_idx[i]))
 
 def morphed_curve(cA, cB, grid=[0, 0.25, 0.5, 0.75, 1.0]):
@@ -654,14 +801,15 @@ def morphed_curve(cA, cB, grid=[0, 0.25, 0.5, 0.75, 1.0]):
 
 segs_for_morph = np.array(segs_to_check[[c[0] for c in Common_idx]])
 
+#%%
 from itertools import combinations
 
 interp_grid = np.linspace(0,1,101)
-trackDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'Mnt_DI', 'Mnt_no', 'Mnt_ID'])
-crossDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'Mnt_DI', 'Mnt_no', 'Mnt_ID'])
+# trackDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'Mnt_DI', 'Mnt_no', 'Mnt_ID'])
+# crossDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'Mnt_DI', 'Mnt_no', 'Mnt_ID'])
 
-# trackDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'KAM'])
-# crossDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'KAM'])
+trackDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'KAM'])
+crossDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'KAM'])
 for _k in trackDict.keys():
     temp_track = []
     temp_cross = []
@@ -813,4 +961,82 @@ J = get_partial_on_depthconv(cpr_model[0], 0, segs_to_check[idx2vis_correct[0]])
 # J is of shape (..., 1, 32(kernel length), 8(kernel num), 2(depth_mulitplier) ) 
 
 
+# %%
+'''
+track the accuracy change while morphing from zeros to X linearly on the amplitude
+'''
+from sklearn.metrics import accuracy_score
+interp_grid = np.linspace(0,1,21)
+AccTrackDict = dict.fromkeys(['EEGNet', 'QKV', 'CBAM', 'SE', 'Mnt_DI', 'Mnt_no', 'Mnt_ID'])
+Ytest_int = np.argmax(Ytest,axis=1)
+count_HVHA = np.sum(Ytest_int==0)  #HVHA
+count_HVLA = np.sum(Ytest_int==1)  #HVLA
+count_LVHA = np.sum(Ytest_int==2)  #LVHA
+count_LVLA = np.sum(Ytest_int==3)  #LVLA
+count_all = Ytest_int.size
+
+for _k in AccTrackDict.keys():
+    temp_track = []
+    i = model_compared.index(_k)
+    for alpha in interp_grid:
+        pred = cpr_model[i].predict(alpha*segs_to_check_tst)
+        pred_int = np.argmax(pred,axis=1)
+        CM = confusion_matrix( Ytest_int , pred_int )
+
+        temp_track.append( [CM[0,0]/count_HVHA , CM[1,1]/count_HVLA ,
+                            CM[2,2]/count_LVHA , CM[3,3]/count_LVLA ,
+                            accuracy_score(Ytest_int, pred_int)
+                            ] )
+        temp_track[-1] += [(4/3)**0.5*(count_HVHA/count_all*(temp_track[-1][0]-temp_track[-1][-1])**2
+                          + count_HVLA/count_all*(temp_track[-1][1]-temp_track[-1][-1])**2
+                          + count_LVHA/count_all*(temp_track[-1][2]-temp_track[-1][-1])**2
+                          + count_LVLA/count_all*(temp_track[-1][3]-temp_track[-1][-1])**2)**0.5]#append the weighted std
+
+        # temp_track.append( [np.sum(pred_int==0)/count_HVHA, np.sum(pred_int==1)/count_HVLA,
+        #                     np.sum(pred_int==2)/count_LVHA, np.sum(pred_int==3)/count_LVLA,
+        #                     accuracy_score(Ytest_int, pred_int)] )
+
+        # CM = confusion_matrix( Ytest_int , np.argmax(pred, axis=1) )      
+        # _, b = scores(CM )        
+        # temp_track.append( b )
+
+    AccTrackDict[model_compared[i]] = np.array(temp_track)
+
+#%%
+ll = ['EEGNet', '+QKV', '+CBAM', '+SE','+M1', '+M2', '+M3']
+ll_order = ['HVHA', 'HVLA', 'LVHA', 'LVLA']
+fig, ax = plt.subplots(2,4,figsize=(24,12))
+count = 0
+for _k, _v in AccTrackDict.items():
+    r_num = count//4
+    c_num = count%4
+    for i in range(4):
+        ax[r_num][c_num].plot(interp_grid, _v[:,i], '--', linewidth=4,label = ll_order[i])
+    ax[r_num][c_num].plot(interp_grid, _v[:,-2], linewidth=4, label = 'Overall')
+    
+    ax[r_num][c_num].fill_between(interp_grid, _v[:,-2] - _v[:,-1], _v[:,-2] + _v[:,-1], 
+                                 color='gray', alpha=0.3, label='std')  
+    vv = np.where(_v[:,-1]<0.1, _v[:,-1], 0)
+    ax[r_num][c_num].fill_between(interp_grid, _v[:,-2] - vv, _v[:,-2] + vv, 
+                                 color='pink', alpha=0.8, label='std(<0.1)')              
+
+    ax[r_num][c_num].set_xlabel(r'$\alpha$', fontdict={'size':20})
+    ax[r_num][c_num].set_ylabel('Acc.',fontdict={'size':18})
+    ax[r_num][c_num].set_ylim([0,1])
+    ax[r_num][c_num].set_title(ll[count],fontdict={'size':24})
+    ax[r_num][c_num].grid(axis ='both')
+    
+    count = count+1
+ax[-1][-2].legend(bbox_to_anchor=(1.8, 1.0),fontsize=20)
+ax[-1][-1].set_frame_on(False)
+ax[-1][-1].set_xticks([])
+ax[-1][-1].set_xticklabels([])
+ax[-1][-1].set_yticks([])
+ax[-1][-1].set_yticklabels([])
+plt.subplots_adjust(hspace=0.3)
+# plt.ylim([0.0, 1.0])
+# plt.legend(loc = 'lower right')
+# plt.xlabel('$\alpha$')
+# plt.ylabel('Acc.')
+# plt.grid()
 # %%

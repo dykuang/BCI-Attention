@@ -26,7 +26,7 @@ Plots about trained models
 from Models import *
 
 def load_trained(ckpt_path, nn_token, subject,model_dict, count = 0, num_class=3, 
-                 seg_len=200, lr=1e-3):
+                 seg_len=200, lr=1e-2):
     if nn_token in ['baseline', 'eegnet']:
         model = EEGNet(nb_classes = num_class, Chans = 62, Samples = seg_len, 
                     dropoutRate = 0.5, kernLength = 5, F1 = 8, 
@@ -69,7 +69,15 @@ def load_trained(ckpt_path, nn_token, subject,model_dict, count = 0, num_class=3
         model = KANet(nb_classes = num_class, Chans = 62, Samples = seg_len, 
                     dropoutRate = 0.5, kernLength = 5, F1 = 8, 
                     D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
-                    optimizer = Adam, learning_rate = lr)   
+                    optimizer = Adam, learning_rate = lr)  
+    elif nn_token in ['DCN']:
+        model = DeepConvNet(nb_classes = num_class, Chans = 62, Samples = seg_len,
+                    dropoutRate = 0.25, attention_type = 'No',
+                    optimizer = Adam, learning_rate = lr)
+    elif nn_token in ['DCN_KAM']:
+        model = DeepConvNet(nb_classes = num_class, Chans = 62, Samples = seg_len,
+                    dropoutRate = 0.25, attention_type = 'KAM',
+                    optimizer = Adam, learning_rate = lr)
     else:
         assert 'nn_token not recognized.'
     
@@ -86,11 +94,13 @@ def load_trained(ckpt_path, nn_token, subject,model_dict, count = 0, num_class=3
 Extracting channel attention weights for compared models:
 '''
 ckpt_path = '/mnt/HDD/Datasets/SEED/ckpt'
-subject_selected = 4
-# model_names = ['baseline','qkv','SE','CBAM','C2A_NNR_DI','C2A_NNR_ID','C2A_NNR_0c']
-# model_tokens = ['eegnet', 'qkv','SE','CBAM','C2A_NNR_mono_DI','C2A_NNR_mono_ID','C2A_NNR_0c']
-model_names = ['baseline','qkv','SE','CBAM','K_v1']
-model_tokens = ['eegnet', 'qkv','SE','CBAM','kanet_v1']
+subject_selected = 1
+model_names = ['baseline','qkv','SE','CBAM','C2A_NNR_0c','C2A_NNR_ID','C2A_NNR_DI']
+model_tokens = ['eegnet', 'qkv','SE','CBAM','C2A_NNR_0c','C2A_NNR_mono_ID','C2A_NNR_mono_DI']
+# model_names = ['baseline','qkv','SE','CBAM','K_v1']
+# model_tokens = ['eegnet', 'qkv','SE','CBAM','kanet_v1']
+# model_names = ['baseline','qkv','SE','CBAM','C2A_NNR_DI','C2A_NNR_ID','C2A_NNR_0c', 'K_v1']
+# model_tokens = ['eegnet', 'qkv','SE','CBAM','C2A_NNR_mono_DI','C2A_NNR_mono_ID','C2A_NNR_0c','kanet_v1']
 model_dict = dict(zip(model_names, model_tokens))
 
 #%%
@@ -136,8 +146,82 @@ for _s in [1, 4, 9, 14, 15]:
     ## Create target array to save, after normalization
 
     CC = np.array(Collect)
-    savemat('/mnt/HDD/Datasets/SEED/benchmark_summary/SEED_scalp_all_models_S{:02d}.mat'.format(_s), {'CM':CC})
+    # savemat('/mnt/HDD/Datasets/SEED/benchmark_summary/SEED_scalp_all_models_S{:02d}.mat'.format(_s), {'CM':CC})
 
+
+#%%
+'''
+Try exploring the weight correlation among sensor locations
+'''
+from scipy.io import loadmat
+import pickle
+
+# For each model, get the most correlated channel and max correlated channel pair
+
+def get_most_correlated_pairs(CMatrix, topN=5, symmetry=True):
+    '''
+    Assuming Cmatrix is 2d
+    '''
+    rr, cc = CMatrix.shape
+    if symmetry:
+        coord_2d = []
+        val = []
+        for i in range(1, rr):
+            for j in range(i):
+                coord_2d.append((i,j))
+                val.append(CMatrix[i,j])
+        sorted = np.argsort(np.array(val))
+        max_loc = [coord_2d[ii] for ii in sorted[-topN:]]
+        min_loc = [coord_2d[ii] for ii in sorted[:topN]]
+
+        
+    else:
+        sorted = np.argsort(np.reshape(CMatrix, -1))
+        
+        max_cor_idx = sorted[-topN:]
+        min_cor_idx = sorted[:topN]
+        
+        max_loc = [(idx//rr, idx%cc) for idx in max_cor_idx]
+        min_loc = [(idx//rr, idx%cc) for idx in min_cor_idx]
+
+    
+    return max_loc, min_loc
+
+
+def link_cor_2d(Cmatrix, Coord_2d, topN=5):
+
+    max_loc, min_loc = get_most_correlated_pairs(Cmatrix, topN)
+
+    plt.figure(figsize=(6,6))
+    plt.plot(Coord_2d[:,0], Coord_2d[:,1], 'k.', markersize=20)
+    for _p in max_loc:
+        plt.plot([Coord_2d[_p[0],0],  Coord_2d[_p[1],0]],
+                [Coord_2d[_p[0],1],  Coord_2d[_p[1],1]], 'r', linewidth=3)
+    for _p in min_loc:
+        plt.plot([Coord_2d[_p[0],0],  Coord_2d[_p[1],0]],
+                [Coord_2d[_p[0],1],  Coord_2d[_p[1],1]], 'b',linewidth=3)
+
+    plt.xlim([-0.6,0.6])
+    plt.ylim([-0.6, 0.6])
+    plt.grid(False)
+    plt.axis('off')
+
+#%%
+
+scalp_weights = loadmat('/mnt/HDD/Datasets/SEED/benchmark_summary/SEED_scalp_all_models_S{:02d}.mat'.format(subject_selected))['CM']
+
+with open('./ch_pos_1020.pkl', 'rb') as pkl:
+    pos_dict = pickle.load(pkl)
+
+XY = []
+for ch in pos_dict.keys():
+        XY.append(pos_dict[ch][:2])
+XY = np.array(XY)
+
+
+for _w in scalp_weights:
+    cor = np.corrcoef(_w)
+    link_cor_2d(cor, XY)
 
 #%%
 '''
@@ -315,8 +399,8 @@ for folder_token, nn_token in zip(['C2A_NNR_0c', 'C2A_NNR_ID', 'C2A_NNR_DI'], ['
         temp_list.append(cc)
     mono_list.append(np.array(temp_list))
 
-with plt.style.context('ggplot'): # compare with resutls from SEED
-    fig, ax = plt.subplots(1,3)
+with plt.style.context('ggplot'): # compare with results from SEED
+    fig, ax = plt.subplots(1,3,figsize=(12,6))
     for i in range(3):
         _mean = np.mean(mono_list[i], axis=0)
         _std = np.std(mono_list[i], axis=0)
@@ -327,6 +411,49 @@ with plt.style.context('ggplot'): # compare with resutls from SEED
         ax[i].set_title('M{}'.format(i+1))  
         ax[i].legend(loc = 'upper left')  
 
+#%%
+'''
+Get some sample feature slices
+'''
+X = loadmat( os.path.join(data_path, 'S{:02d}_E01.mat'.format(subject_selected)) )['segs'].transpose([2,1,0])
+chns = np.arange(62)
+X_normalized = zscore(X, axis=1)
+chns_token = '{:02d}'.format(len(chns))
+Y = loadmat( os.path.join(data_path, 'Label.mat') )['seg_labels'][0]+1
+
+#%%
+'''make some sample feature plots'''
+feature_list = []
+for folder_token, nn_token in zip(['C2A_NNR_0c', 'C2A_NNR_ID', 'C2A_NNR_DI'], 
+                                  ['C2A_NNR_0c', 'C2A_NNR_mono_ID', 'C2A_NNR_mono_DI']):
+    temp = []
+    for fld  in range(5):
+        model = load_trained(os.path.join(ckpt_path, folder_token), nn_token, subject_selected, 
+                             model_dict, count = fld, num_class=3, seg_len=200, lr=1e-3)
+        fmap = Model(model.input,  
+                     model.get_layer('att_mono').output[0] 
+                     - model.get_layer('SepConv-1').output[...,0,:] ) #get the difference
+        temp.append(fmap.predict(X_normalized))
+
+    feature_list.append(np.array(temp))
+
+feature_list = np.array(feature_list) # (monotype, folds, samples, ...)
+feature_list_m = np.mean(feature_list, axis= 1) # mean over folds
+
+rnd_ind = 10
+
+#%%
+Feature2Plot = feature_list_m[:,[np.where(Y==i)[0][rnd_ind] for i in range(3)],...]  #(monotype, label, ...)
+# Feature2Plot = Feature2Plot/np.max(np.abs(Feature2Plot), keepdims=True) # normalization 
+
+#%%
+with plt.style.context('ggplot'): # compare with results from SEED
+    fig, ax = plt.subplots(3,3,figsize=(8,6))
+    for i in range(3):
+        for j in range(3):
+            _im = ax[i][j].imshow(Feature2Plot[j,i].T, cmap = 'jet')
+            ax[i][j].set_axis_off()
+    plt.colorbar(_im, ax=ax.ravel().tolist() )         
 
 # %%
 '''
@@ -350,11 +477,7 @@ def batch_band_pass(values, low_end_cutoff, high_end_cutoff, sampling_freq, btyp
     
     return X_filtered
 
-X = loadmat( os.path.join(data_path, 'S{:02d}_E01.mat'.format(subject_selected)) )['segs'].transpose([2,1,0])
-chns = np.arange(62)
-# X = zscore(X[...,chns], axis=1)
-chns_token = '{:02d}'.format(len(chns))
-Y = loadmat( os.path.join(data_path, 'Label.mat') )['seg_labels'][0]+1
+
 
 
 #%%
@@ -368,7 +491,7 @@ rej_band.insert(0, (1,10))
 data_seq = [ batch_band_pass(X, lp, hp, 200, btype='bandstop') for 
              (lp,hp) in rej_band ] #bandstop case
 data_seq.append(X)
-data_seq = [zscore(_d, axis=1) for _d in data_seq]
+data_seq = [zscore(_d, axis=1) for _d in data_seq] # normalization after filtering
 
 # X_N = zscore(X, axis=1)
 # data_seq = [ batch_band_pass(X_N, lp, hp, 200, btype='bandstop') for 
@@ -586,4 +709,76 @@ def trace_plot_on_hp(cross_track, attach_legend=True, title=None):
 trace_plot_on_hp(trackDict['baseline'], attach_legend=False, title = 'EEGNet')
 # trace_plot_on_hp(trackDict['SE'], attach_legend=False, title = '+SE')
 # trace_plot_on_hp(trackDict['CBAM'], attach_legend=True, title = '+CBAM')
+# %%
+'''
+Extraplot for tracking the accuracy change while morphing from zeros to X linearly on the amplitude
+'''
+
+from sklearn.metrics import accuracy_score
+interp_grid = np.linspace(0,1,21)
+AccTrackDict = dict.fromkeys(cpr_model.keys())
+count_Neg = np.sum(Y==0)  #Negative
+count_Neu = np.sum(Y==1)  #Neutral
+count_Pos = np.sum(Y==2)  #Positive
+count_all = Y.size
+
+for _k in AccTrackDict.keys():
+    temp_track = []
+    for alpha in interp_grid:
+        pred = cpr_model[_k].predict(alpha*X_normalized)
+        pred_int = np.argmax(pred,axis=1)
+        CM = confusion_matrix( Y , pred_int )
+
+        temp_track.append( [CM[0,0]/count_Neg, CM[1,1]/count_Neu,
+                            CM[2,2]/count_Pos,
+                            accuracy_score(Y, pred_int)
+                            ] )
+        temp_track[-1] += [(3/2)**0.5*(count_Neg/count_all*(temp_track[-1][0]-temp_track[-1][-1])**2
+                          + count_Neu/count_all*(temp_track[-1][1]-temp_track[-1][-1])**2
+                          + count_Pos/count_all*(temp_track[-1][2]-temp_track[-1][-1])**2)**0.5]#append the weighted std
+
+        # temp_track.append( [np.sum(pred_int==0)/count_HVHA, np.sum(pred_int==1)/count_HVLA,
+        #                     np.sum(pred_int==2)/count_LVHA, np.sum(pred_int==3)/count_LVLA,
+        #                     accuracy_score(Ytest_int, pred_int)] )
+
+        # CM = confusion_matrix( Ytest_int , np.argmax(pred, axis=1) )      
+        # _, b = scores(CM )        
+        # temp_track.append( b )
+
+    AccTrackDict[_k] = np.array(temp_track)
+
+#%%
+ll = ['EEGNet', '+QKV', '+CBAM', '+SE','+M1', '+M2', '+M3']
+ll_order = ['Negative', 'Neutral', 'Positive']
+fig, ax = plt.subplots(2,4,figsize=(24,12))
+count = 0
+for _k in ['baseline', 'qkv', 'CBAM', 'SE', 'C2A_NNR_0c', 'C2A_NNR_ID', 'C2A_NNR_DI']:
+    _v = AccTrackDict[_k]
+    r_num = count//4
+    c_num = count%4
+    for i in range(3):
+        ax[r_num][c_num].plot(interp_grid, _v[:,i], '--', linewidth=4,label = ll_order[i])
+    ax[r_num][c_num].plot(interp_grid, _v[:,-2], 'purple', linewidth=4,label = 'Overall')
+    
+    ax[r_num][c_num].fill_between(interp_grid, _v[:,-2] - _v[:,-1], _v[:,-2] + _v[:,-1], 
+                                 color='gray', alpha=0.3, label='std')  
+    vv = np.where(_v[:,-1]<0.1, _v[:,-1], 0)
+    ax[r_num][c_num].fill_between(interp_grid, _v[:,-2] - vv, _v[:,-2] + vv, 
+                                 color='pink', alpha=0.8, label='std(<0.1)')      
+
+    ax[r_num][c_num].set_xlabel(r'$\alpha$', fontdict={'size':20})
+    ax[r_num][c_num].set_ylabel('Acc.',fontdict={'size':18})
+    ax[r_num][c_num].set_ylim([0,1])
+    ax[r_num][c_num].set_title(ll[count],fontdict={'size':24})
+    ax[r_num][c_num].grid(axis ='both')
+    
+    count = count+1
+ax[-1][-2].legend(bbox_to_anchor=(1.8, 1.0), fontsize=20)
+ax[-1][-1].set_frame_on(False)
+ax[-1][-1].set_xticks([])
+ax[-1][-1].set_xticklabels([])
+ax[-1][-1].set_yticks([])
+ax[-1][-1].set_yticklabels([])
+plt.subplots_adjust(hspace=0.3)
+
 # %%
