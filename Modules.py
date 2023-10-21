@@ -1190,11 +1190,67 @@ class qKv_attention(layers.Layer):
         return x_proj
         # return x + x_proj
 
+#%%
+#%%
+'''
+The classical multi-head self attention
+'''
+class My_MHSA(layers.Layer):
+    def __init__(self, dim, num_heads, dropout_rate, qkv_bias=True, **kwargs):
+        super(My_MHSA, self).__init__(**kwargs)
+        self.dim = dim
+        self.num_heads = num_heads
+        self.scale = (dim // num_heads) ** -0.5
+        self.qkv = layers.Dense(dim *3, activation = 'linear', 
+                                use_bias=qkv_bias)
+        self.dropout = layers.Dropout(dropout_rate)
+        # self.proj = layers.Dense(dim, activation='linear', name='proj')
+
+    def build(self, input_shape):
+        _,_,channels = input_shape
+        # _, self.Tsize,channels = input_shape
+        self.proj = layers.Dense(channels, activation='linear', name='proj')
+
+    def call(self, x, mask=None):
+        _, size, channels = x.shape  # in newer tenorflow(2.14.0), size can be None, in which case use the commented line in build method
+
+        x_qkv = self.qkv(x)
+        head_dim = self.dim//self.num_heads
+        x_qkv = tf.reshape(x_qkv, shape=(-1, size, 3, self.num_heads, head_dim))
+        x_qkv = tf.transpose(x_qkv, perm=(2, 0, 3, 1, 4))
+        q, k, v = x_qkv[0], x_qkv[1], x_qkv[2]
+        q = q * self.scale
+
+        attn = q @ tf.transpose(k, (0,1,3,2) )
+
+        if mask is not None:
+            nW = mask.get_shape()[0]
+            mask_float = tf.cast(
+                tf.expand_dims(tf.expand_dims(mask, axis=1), axis=0), tf.float32
+            )
+            attn = (
+                tf.reshape(attn, shape=(-1, nW, self.num_heads, size, size))
+                + mask_float
+            )
+            attn = tf.reshape(attn, shape=(-1, self.num_heads, size, size))
+            attn = keras.activations.softmax(attn, axis=-1)
+        else:
+            attn = keras.activations.softmax(attn, axis=-1)
+        attn = self.dropout(attn)
+
+        x_qkv = attn @ v
+        x_qkv = tf.transpose(x_qkv, perm=(0, 2, 1, 3))
+        # x_qkv = tf.reshape(x_qkv, shape=(-1, size, channels))
+        x_qkv = tf.reshape(x_qkv, shape=(-1, size, self.dim))
+
+        x_qkv = self.proj(x_qkv)
+        x_qkv = self.dropout(x_qkv)
+        return x_qkv
+    
 
 '''
 KAM with off-diagonal mask choice
 '''
-
 class K_attention_ex(layers.Layer):
     def __init__(self, use_margin=True, offdiag_mask = True, **kwargs):
         super(K_attention_ex, self).__init__(**kwargs)

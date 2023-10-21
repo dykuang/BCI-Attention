@@ -431,6 +431,9 @@ def KANet(nb_classes, Chans = 64, Samples = 128,
     block2       = K_attention(name = 'Katt')(block2)
     # block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
     #                             name='Katt')(block2,kernel='Linear',use_mask=False)
+    # block2       = My_MHSA(dim=16, num_heads=4, dropout_rate=0.0,name='MHSA')(block2)
+    # block2       = layers.LayerNormalization(axis=-1, name='LN')(block2)
+
     # block2       = K_attention_MH(num_heads=4, name='Katt')(block2)
     # block2       = K_attention_ex(name = 'Katt')(block2)
     # block2       = KAM_R(name = 'C2A_NNR')(block2, offdiag_mask=True, use_mask=False)
@@ -445,6 +448,9 @@ def KANet(nb_classes, Chans = 64, Samples = 128,
     # block2       = K_attention(name = 'Katt')(block2)
     # block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
     #                             name='Katt')(block2,kernel='Linear',use_mask=False)
+    # block2       = My_MHSA(dim=16, num_heads=4, dropout_rate=0.0,name='MHSA')(block2)
+    # block2       = layers.LayerNormalization(axis=-1, name='LN')(block2)
+
     # block2       = K_attention_MH(num_heads=4, name='Katt')(block2)
     # block2       = K_attention_ex(name = 'Katt')(block2)
     # block2       = KAM_R(name = 'C2A_NNR')(block2, offdiag_mask=True, use_mask=False)
@@ -528,6 +534,8 @@ def MTNet(nb_classes, Chans = 64, Samples = 128,
     # block2       = K_attention_MH(num_heads=2, name='Katt')(block2)
     # block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
                                 #  name='Katt')(block2,kernel='Linear',use_mask=False)
+    # block2       = My_MHSA(dim=16, num_heads=4, dropout_rate=0.0,name='MHSA')(block2)
+
     # block2       = K_attention_ex(name = 'Katt', use_margin=True, offdiag_mask=True)(block2)
     block2, penalty  = FC_mono(name = 'att_mono', penalty_rate=penalty_rate, mono_mode=mono_mode)(block2, offdiag_mask=True, use_mask=False)
     #block2       = layers.Permute((2,1))(block2)
@@ -544,6 +552,8 @@ def MTNet(nb_classes, Chans = 64, Samples = 128,
     # # block2       = K_attention_MH(num_heads=2, name='Katt')(block2)
     # # block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
     #                             #  name='Katt')(block2,kernel='Linear',use_mask=False)
+    # # block2       = My_MHSA(dim=16, num_heads=4, dropout_rate=0.0,name='MHSA')(block2)
+
     # # block2       = K_attention_ex(name = 'Katt', use_margin=True, offdiag_mask=True)(block2)
     # block2, penalty  = K_attention_mono(name = 'att_mono')(block2, offdiag_mask=True, use_mask=False, mono_mode = 1)
     # block2       = layers.Lambda(lambda x: x[...,None,:])(block2)
@@ -664,6 +674,9 @@ def QKVNet(nb_classes, Chans = 64, Samples = 128,
     # block2       = K_attention(name = 'Katt')(block2)
     block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
                                  name='QKV-att')(block2,kernel='Linear',use_mask=False)
+    # block2       = My_MHSA(dim=16, num_heads=4, dropout_rate=0.0,name='MHSA')(block2)
+    # block2       = layers.LayerNormalization(axis=-1, name='LN')(block2)
+
     # block2       = K_attention_MH(num_heads=4, name='Katt')(block2)
     # block2       = K_attention_ex(name = 'Katt')(block2)
     # block2       = KAM_R(name = 'C2A_NNR')(block2, offdiag_mask=True, use_mask=False)
@@ -678,6 +691,9 @@ def QKVNet(nb_classes, Chans = 64, Samples = 128,
     # block2       = K_attention(name = 'Katt')(block2)
     # block2       = qKv_attention(dim=16, num_heads=4, dropout_rate=0.003,
     #                             name='Katt')(block2,kernel='Linear',use_mask=False)
+    # block2       = My_MHSA(dim=16, num_heads=4, dropout_rate=0.0,name='MHSA')(block2)
+    # block2       = layers.LayerNormalization(axis=-1, name='LN')(block2)
+
     # block2       = K_attention_MH(num_heads=4, name='Katt')(block2)
     # block2       = K_attention_ex(name = 'Katt')(block2)
     # block2       = KAM_R(name = 'C2A_NNR')(block2, offdiag_mask=True, use_mask=False)
